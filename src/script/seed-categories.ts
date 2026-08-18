@@ -1,6 +1,8 @@
 import { db } from "@/db";
 import { categories } from "@/db/schema";
 
+//TODO: Make categories dynamic according to user
+
 const categoryNames = [
     "Music",
     "Gaming",

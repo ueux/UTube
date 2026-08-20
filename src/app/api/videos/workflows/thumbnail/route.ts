@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
-import { UTApi } from "uploadthing/server";
-import { serve } from "@upstash/workflow/nextjs"
-
+import { UTApi, UTFile } from "uploadthing/server";
+import { serve } from "@upstash/workflow/nextjs";
+import { GoogleGenAI } from "@google/genai";
 import { db } from "@/db";
 import { videos } from "@/db/schema";
 
@@ -9,84 +9,85 @@ interface InputType {
   userId: string;
   videoId: string;
   prompt: string;
-};
+}
 
-export const { POST } = serve(
-  async (context) => {
-    const utapi = new UTApi();
-    const input = context.requestPayload as InputType;
-    const { videoId, userId, prompt } = input;
+export const { POST } = serve(async (context) => {
+  const utapi = new UTApi();
+  const input = context.requestPayload as InputType;
+  const { videoId, userId, prompt } = input;
 
-    const video = await context.run("get-video", async () => {
-      const [existingVideo] = await db
-        .select()
-        .from(videos)
-        .where(and(
-          eq(videos.id, videoId),
-          eq(videos.userId, userId),
-        ));
+  const video = await context.run("get-video", async () => {
+    const [existingVideo] = await db
+      .select()
+      .from(videos)
+      .where(and(eq(videos.id, videoId), eq(videos.userId, userId)));
 
-      if (!existingVideo) {
-        throw new Error("Not found");
-      }
-
-      return existingVideo;
-    });
-
-    const { body } = await context.call<{ data: { url: string }[] }>("generate-thumbnail", {
-      url: "https://api.openai.com/v1/images/generations",
-      method: "POST",
-      body: {
-        prompt,
-        n: 1,
-        model: "dall-e-3",
-        size: "1792x1024",
-      },
-      headers: {
-        authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-    });
-
-    const tempThumbnailUrl = body.data[0].url;
-
-    if (!tempThumbnailUrl) {
-      throw new Error("Bad request");
+    if (!existingVideo) {
+      throw new Error("Not found");
     }
 
-    await context.run("cleanup-thumbnail", async () => {
-      if (video.thumbnailKey) {
-        await utapi.deleteFiles(video.thumbnailKey);
-        await db
-          .update(videos)
-          .set({ thumbnailKey: null, thumbnailUrl: null })
-          .where(and(
-            eq(videos.id, videoId),
-            eq(videos.userId, userId),
-          ));
-      }
+    return existingVideo;
+  });
+
+  const imageBuffer = await context.run("generate-thumbnail", async () => {
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY!,
     });
 
-    const uploadedThumbnail = await context.run("upload-thumbnail", async () => {
-      const { data } = await utapi.uploadFilesFromUrl(tempThumbnailUrl);
-
-      if (!data) {
-        throw new Error("Bad request");
-      }
-
-      return data;
+    const interaction = await ai.interactions.create({
+      model: "gemini-3.1-flash-image",
+      input: prompt,
+      response_format: {
+        type: "image",
+        aspect_ratio: "16:9",
+        image_size: "2K",
+      },
     });
 
-    await context.run("update-video", async () => {
+    const generatedImage = interaction.output_image;
+    console.log(generatedImage)
+
+    if (!generatedImage) {
+      throw new Error("Gemini failed to generate an image");
+    }
+    if (!generatedImage.data) {
+      throw new Error("Gemini returned an image without data");
+    }
+
+    return Buffer.from(generatedImage.data, "base64");
+  });
+
+  await context.run("cleanup-thumbnail", async () => {
+    if (video.thumbnailKey) {
+      await utapi.deleteFiles(video.thumbnailKey);
       await db
         .update(videos)
-        .set({
-          thumbnailKey: uploadedThumbnail.key,
-          thumbnailUrl: uploadedThumbnail.url,
-        })
-        .where(and(
-          eq(videos.id, video.id),
-          eq(videos.userId, video.userId),
-        ))
-    })
-  }
-);
+        .set({ thumbnailKey: null, thumbnailUrl: null })
+        .where(and(eq(videos.id, videoId), eq(videos.userId, userId)));
+    }
+  });
+
+  const uploadedThumbnail = await context.run("upload-thumbnail", async () => {
+    const file = new UTFile([imageBuffer], `thumbnail-${videoId}.png`, {
+      type: "image/png",
+    });
+
+    const response = await utapi.uploadFiles(file);
+
+    if (!response.data) {
+      throw new Error(response.error?.message ?? "Failed to upload thumbnail");
+    }
+
+    return response.data;
+  });
+
+  await context.run("update-video", async () => {
+    await db
+      .update(videos)
+      .set({
+        thumbnailKey: uploadedThumbnail.key,
+        thumbnailUrl: uploadedThumbnail.ufsUrl,
+      })
+      .where(and(eq(videos.id, video.id), eq(videos.userId, video.userId)));
+  });
+});

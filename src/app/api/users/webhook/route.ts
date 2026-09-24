@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { users } from "@/db/schema"
-import { WebhookEvent } from "@clerk/nextjs/server"
+import { WebhookEvent, type UserJSON } from "@clerk/nextjs/server"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { Webhook } from "svix"
@@ -36,13 +36,18 @@ export async function POST(req: Request) {
 
     const eventType = evt.type
 
+    const buildName = (data: Pick<UserJSON, "first_name" | "last_name" | "username">) =>
+        [data.first_name, data.last_name].filter(Boolean).join(" ") ||
+        data.username ||
+        "Unnamed user"
+
     if (eventType === "user.created") {
         const data = evt.data
         await db.insert(users).values({
             clerkId: data.id,
-            name: `${data.first_name} ${data.last_name}`,
+            name: buildName(data),
             imageUrl:data.image_url
-        })
+        }).onConflictDoNothing()
     }
     if (eventType === "user.deleted") {
         const data = evt.data
@@ -51,10 +56,11 @@ export async function POST(req: Request) {
     }
     if (eventType === "user.updated") {
         const data = evt.data
+        if(!data.id)return new Response("Missing user id",{status:400})
         await db.update(users).set({
-            name: `${data.first_name} ${data.last_name}`,
+            name: buildName(data),
             imageUrl:data.image_url
         }).where(eq(users.clerkId,data.id))
     }
-    return new Response("Webhook recieved",{status:200})
+    return new Response("Webhook received",{status:200})
 }

@@ -21,6 +21,7 @@ export const searchRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { cursor, limit, query, categoryId } = input;
+      const escapedQuery = query?.replace(/[\\%_]/g, (char) => `\\${char}`);
 
       const data = await db
         .select({ ...getTableColumns(videos), user: users,
@@ -33,7 +34,7 @@ export const searchRouter = createTRPCRouter({
         .where(
           and(
             eq(videos.visibility,"public"),
-            ilike(videos.title, `%${query}%`),
+            escapedQuery ? ilike(videos.title, `%${escapedQuery}%`) : undefined,
             categoryId ? eq(videos.categoryId, categoryId) : undefined,
             cursor
               ? or(

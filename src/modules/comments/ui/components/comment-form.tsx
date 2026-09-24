@@ -38,12 +38,14 @@ export const CommentForm = ({ videoId,parentId, onSuccess,onCancel,variant="comm
             }
         }
     })
-    const commentFormSchema = commentInsertSchema.omit({ userId: true });
+    const commentFormSchema = commentInsertSchema.omit({ userId: true }).extend({
+        value: z.string().trim().min(1, "Comment cannot be empty"),
+    });
     const form = useForm<z.infer<typeof commentFormSchema>>({
         resolver: zodResolver(commentFormSchema),
         defaultValues: { parentId,videoId, value: "" }
     })
-    const handleSumbit = (values: z.infer<typeof commentFormSchema>) => {
+    const handleSubmitComment = (values: z.infer<typeof commentFormSchema>) => {
         create.mutate(values)
     }
     const handleCancel = () => {
@@ -52,7 +54,7 @@ export const CommentForm = ({ videoId,parentId, onSuccess,onCancel,variant="comm
     }
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSumbit)} className=" flex gap-4 group">
+            <form onSubmit={form.handleSubmit(handleSubmitComment)} className=" flex gap-4 group">
                 <UserAvatar size={"lg"} imageUrl={user?.imageUrl || "/user-logo.svg"} name={user?.username || "User"} />
                 <div className="flex-1">
                     <FormField name="value" control={form.control} render={({ field }) => (

@@ -71,11 +71,11 @@ export const CommentItem = ({ comment, variant = "comment" }: CommentItemProps) 
                         <Button disabled={like.isPending} className="size-8" size={"icon"} variant={"ghost"} onClick={() => like.mutate({ commentId: comment.id })}>
                             <ThumbsUpIcon className={cn(comment.viewerReaction === "like" && "fill-black")} />
                         </Button>
-                        <span className="twxt-xs text-muted-foreground">{comment.likeCount}</span>
+                        <span className="text-xs text-muted-foreground">{comment.likeCount}</span>
                         <Button disabled={dislike.isPending} className="size-8" size={"icon"} variant={"ghost"} onClick={() => dislike.mutate({ commentId: comment.id })}>
                             <ThumbsDownIcon className={cn(comment.viewerReaction === "dislike" && "fill-black")} />
                         </Button>
-                        <span className="twxt-xs text-muted-foreground">{comment.dislikeCount}</span>
+                        <span className="text-xs text-muted-foreground">{comment.dislikeCount}</span>
                     </div>
                     {variant === "comment" && (
                         <Button variant={"ghost"} size={"sm"} className="h-8" onClick={() => setIsReplyOpen(true)}>Reply</Button>
@@ -105,7 +105,7 @@ export const CommentItem = ({ comment, variant = "comment" }: CommentItemProps) 
                 <CommentForm videoId={comment.videoId} parentId={comment.id} variant="reply"
                     onCancel={() => setIsReplyOpen(false)}
                     onSuccess={() => {
-                        setIsReplyOpen(true)
+                        setIsReplyOpen(false)
                         setIsRepliesOpen(true)
                     }} />
             </div>

@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { UTApi } from "uploadthing/server";
 
-const SIGNING_SERCRET = process.env.MUX_WEBHOOK_SECRET;
+const SIGNING_SECRET = process.env.MUX_WEBHOOK_SECRET;
 type WebhookEvent =
   | VideoAssetCreatedWebhookEvent
   | VideoAssetReadyWebhookEvent
@@ -21,15 +21,19 @@ type WebhookEvent =
   | VideoAssetDeletedWebhookEvent;
 
 export const POST = async (req: Request) => {
-  if (!SIGNING_SERCRET) throw new Error("MUX_WEBHOOK_SECRET is not set");
+  if (!SIGNING_SECRET) throw new Error("MUX_WEBHOOK_SECRET is not set");
   const headersPayload = await headers();
   const muxSignature = headersPayload.get("mux-signature");
   if (!muxSignature) return new Response("No signature found", { status: 401 });
   const payload = await req.json();
   const body = JSON.stringify(payload);
-  mux.webhooks.verifySignature(body, {
-    "mux-signature": muxSignature,
-  });
+  try {
+    mux.webhooks.verifySignature(body, {
+      "mux-signature": muxSignature,
+    });
+  } catch {
+    return new Response("Invalid signature", { status: 401 });
+  }
   switch (payload.type as WebhookEvent["type"]) {
     case "video.asset.created": {
       const data = payload.data as VideoAssetCreatedWebhookEvent["data"];
@@ -58,9 +62,15 @@ export const POST = async (req: Request) => {
       const[uploadedThumbnail,uploadedPreview]=await utapi.uploadFilesFromUrl([
           tempThumbnailUrl,tempPreviewlUrl
       ]);
-      if (!uploadedPreview || !uploadedThumbnail) return new Response("Failed to upload thumbnail or preview", { status: 500 })
-      const { key: thumbnailKey, url: thumbnailUrl } = uploadedThumbnail.data as {key:string,url:string}
-      const {key:previewKey,url:previewUrl}=uploadedPreview.data as {key:string,url:string}
+      if (!uploadedThumbnail?.data || !uploadedPreview?.data) {
+        console.error("Failed to upload thumbnail/preview to UploadThing", {
+          thumbnail: uploadedThumbnail?.error,
+          preview: uploadedPreview?.error,
+        });
+        return new Response("Failed to upload thumbnail or preview", { status: 500 });
+      }
+      const { key: thumbnailKey, ufsUrl: thumbnailUrl } = uploadedThumbnail.data;
+      const {key:previewKey,ufsUrl:previewUrl}=uploadedPreview.data;
       await db
         .update(videos)
         .set({
@@ -103,7 +113,7 @@ export const POST = async (req: Request) => {
       };
           const assetId = data.asset_id
                 if (!assetId)
-        return new Response("Missing assent ID", { status: 400 });
+        return new Response("Missing asset ID", { status: 400 });
       await db
         .update(videos)
         .set({
@@ -114,5 +124,5 @@ export const POST = async (req: Request) => {
       break;
     }
   }
-  return new Response("Webhook recieved", { status: 200 });
+  return new Response("Webhook received", { status: 200 });
 };

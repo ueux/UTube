@@ -88,7 +88,7 @@ export const categories = pgTable("categories", {
     updatedAt:timestamp("updated_at").defaultNow().notNull(),
 }, (t) => [uniqueIndex("name_idx").on(t.name)])
 
-export const categoryRelations = relations(users, ({ many }) => ({
+export const categoryRelations = relations(categories, ({ many }) => ({
     videos:many(videos)
 }))
 

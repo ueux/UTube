@@ -247,7 +247,13 @@ export const videosRouter = createTRPCRouter({
         .innerJoin(users, eq(videos.userId, users.id))
         .leftJoin(viewerReactions, eq(viewerReactions.videoId, videos.id))
         .leftJoin(viewerSubscriptions,eq(viewerSubscriptions.creatorId,users.id))
-        .where(eq(videos.id, input.id))
+        .where(and(
+          eq(videos.id, input.id),
+          or(
+            eq(videos.visibility, "public"),
+            userId ? eq(videos.userId, userId) : undefined,
+          ),
+        ))
         // .groupBy(videos.id, users.id, viewerReactions.type);
 
       if (!existingVideo) throw new TRPCError({ code: "NOT_FOUND" });
@@ -271,7 +277,7 @@ export const videosRouter = createTRPCRouter({
       if (!upload||!upload.asset_id) throw new TRPCError({ code: "BAD_REQUEST" });
       const asset = await mux.video.assets.retrieve(upload.asset_id)
       if (!asset) throw new TRPCError({ code: "BAD_REQUEST" });
-      const playbackId = asset.playback_ids?.[0].id;
+      const playbackId = asset.playback_ids?.[0]?.id;
       const duration = asset.duration ? Math.round(asset.duration * 1000) : 0;
       const [updatedVideo] = await db.update(videos).set({
         muxStatus: asset.status,
@@ -312,10 +318,10 @@ export const videosRouter = createTRPCRouter({
       const uploadedThumbnail = await utapi.uploadFilesFromUrl(
         tempThumbnailUrl
       );
-      if (!uploadedThumbnail)
-        return new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const { key: thumbnailKey, url: thumbnailUrl } =
-        uploadedThumbnail.data as { key: string; url: string };
+      if (!uploadedThumbnail.data)
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { key: thumbnailKey, ufsUrl: thumbnailUrl } =
+        uploadedThumbnail.data;
       const [updatedVideo] = await db
         .update(videos)
         .set({ thumbnailUrl, thumbnailKey })
@@ -381,7 +387,7 @@ export const videosRouter = createTRPCRouter({
       .insert(videos)
       .values({
         userId,
-        title: "Undefined",
+        title: "Untitled",
         muxStatus: "waiting",
         muxUploadId: upload.id,
       })

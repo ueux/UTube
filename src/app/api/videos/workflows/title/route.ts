@@ -39,9 +39,15 @@ export const { POST } = serve(
     });
 
     const transcript = await context.run("get-transcript", async () => {
+      if (!video.muxPlaybackId || !video.muxTrackId) {
+        throw new Error("Transcript not ready");
+      }
       const trackUrl = `https://stream.mux.com/${video.muxPlaybackId}/text/${video.muxTrackId}.txt`;
       const response = await fetch(trackUrl);
-      const text = response.text();
+      if (!response.ok) {
+        throw new Error("Failed to fetch transcript");
+      }
+      const text = await response.text();
 
       if (!text) {
         throw new Error("Bad request");
@@ -50,19 +56,21 @@ export const { POST } = serve(
       return text;
     })
 
-    const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-    });
+    const title = await context.run("generate-title", async () => {
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+      });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: transcript,
-      config: {
-        systemInstruction: TITLE_SYSTEM_PROMPT,
-      },
-    });
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: transcript,
+        config: {
+          systemInstruction: TITLE_SYSTEM_PROMPT,
+        },
+      });
 
-    const title = response.text;
+      return response.text?.trim();
+    });
 
     if (!title) {
       throw new Error("Bad request");
@@ -72,7 +80,7 @@ export const { POST } = serve(
       await db
         .update(videos)
         .set({
-          title: title || video.title,
+          title,
         })
         .where(and(
           eq(videos.id, video.id),

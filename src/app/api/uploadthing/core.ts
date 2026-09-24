@@ -87,7 +87,7 @@ export const ourFileRouter = {
           .where(and(eq(videos.id, input.videoId), eq(videos.userId, user.id)));
       }
 
-      return { user, ...input };
+      return { userId: user.id, videoId: input.videoId };
     })
     .onUploadComplete(async ({ metadata, file }) => {
       await db
@@ -99,10 +99,10 @@ export const ourFileRouter = {
         .where(
           and(
             eq(videos.id, metadata.videoId),
-            eq(videos.userId, metadata.user.id)
+            eq(videos.userId, metadata.userId)
           )
         );
-      return { uploadedBy: metadata.user.id };
+      return { uploadedBy: metadata.userId };
     }),
 } satisfies FileRouter;
 

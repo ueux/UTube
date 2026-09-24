@@ -33,7 +33,7 @@ async function main() {
     console.log("Seeding categories...")
     try {
         const values=categoryNames.map((name)=>({name}))
-        await db.insert(categories).values(values)
+        await db.insert(categories).values(values).onConflictDoNothing()
         console.log("Categories seeded successfully!")
     } catch (error) {
         console.error("Error seeding categories:", error)

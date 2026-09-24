@@ -40,6 +40,9 @@ export const playlistsRouter = createTRPCRouter({
       if (!existingVideo) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
+      if (existingVideo.visibility !== "public" && existingVideo.userId !== userId) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
       const [existingPlaylistVideo] =await db.select().from(playlistVideos)
         .where(and(eq(playlistVideos.playlistId, playlistId), eq(playlistVideos.videoId, videoId)));
       if (existingPlaylistVideo) {

@@ -1,8 +1,19 @@
 import { db } from "@/db";
-import { videoReactions } from "@/db/schema";
+import { videos, videoReactions } from "@/db/schema";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import z from "zod";
+
+const assertViewableVideo = async (videoId: string, userId: string) => {
+  const [existingVideo] = await db
+    .select({ id: videos.id, userId: videos.userId, visibility: videos.visibility })
+    .from(videos)
+    .where(eq(videos.id, videoId));
+  if (!existingVideo) throw new TRPCError({ code: "NOT_FOUND" });
+  if (existingVideo.visibility !== "public" && existingVideo.userId !== userId)
+    throw new TRPCError({ code: "FORBIDDEN" });
+};
 
 export const videoReactionsRouter = createTRPCRouter({
   like: protectedProcedure
@@ -10,6 +21,7 @@ export const videoReactionsRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const { videoId } = input;
       const { id: userId } = ctx.user;
+      await assertViewableVideo(videoId, userId);
       const [existingVideoReactionLike] = await db
         .select()
         .from(videoReactions)
@@ -37,6 +49,7 @@ export const videoReactionsRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const { videoId } = input;
       const { id: userId } = ctx.user;
+      await assertViewableVideo(videoId, userId);
       const [existingVideoReactionDislike] = await db
         .select()
         .from(videoReactions)

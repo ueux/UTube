@@ -45,7 +45,6 @@ export const { POST } = serve(async (context) => {
     });
 
     const generatedImage = interaction.output_image;
-    console.log(generatedImage)
 
     if (!generatedImage) {
       throw new Error("Gemini failed to generate an image");

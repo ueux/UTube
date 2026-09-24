@@ -9,7 +9,7 @@ import {
   createTRPCRouter,
 } from "@/trpc/init";
 import { TRPCError } from "@trpc/server";
-import { eq, getTableColumns, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNotNull, or } from "drizzle-orm";
 import z from "zod";
 
 export const usersRouter = createTRPCRouter({
@@ -33,7 +33,13 @@ export const usersRouter = createTRPCRouter({
         .select({
           ...getTableColumns(users),
           viewerSubscribed: isNotNull(viewerSubscriptions.viewerId).mapWith(Boolean),
-          videoCount: db.$count(videos, eq(videos.userId, users.id)),
+          videoCount: db.$count(videos, and(
+            eq(videos.userId, users.id),
+            or(
+              eq(videos.visibility, "public"),
+              userId ? eq(videos.userId, userId) : undefined,
+            ),
+          )),
           subscriberCount:db.$count(subscriptions, eq(subscriptions.creatorId, users.id)),
         })
         .from(users)

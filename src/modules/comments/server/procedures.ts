@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import {  commentReactions, comments, users } from "@/db/schema";
+import {  commentReactions, comments, users, videos } from "@/db/schema";
 import { baseProcedure, createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
@@ -10,14 +10,21 @@ export const commentsRouter = createTRPCRouter({
         .input(z.object({
             videoId: z.string().uuid(),
             parentId: z.string().uuid().nullish(),
-            value: z.string(),
+            value: z.string().trim().min(1),
         }))
         .mutation(async ({ input, ctx }) => {
             const { parentId,videoId ,value} = input
             const { id: userId } = ctx.user;
+            const [existingVideo] = await db
+                .select({ id: videos.id, userId: videos.userId, visibility: videos.visibility })
+                .from(videos)
+                .where(eq(videos.id, videoId))
+            if (!existingVideo) throw new TRPCError({ code: "NOT_FOUND" })
+            if (existingVideo.visibility !== "public" && existingVideo.userId !== userId) throw new TRPCError({ code: "FORBIDDEN" })
             const [existingComment] = await db.select().from(comments).where(inArray(comments.id, parentId ? [parentId] : []))
             if (!existingComment && parentId) throw new TRPCError({ code: "NOT_FOUND" })
             if(existingComment?.parentId && parentId) throw new TRPCError({code:"BAD_REQUEST"})
+            if(existingComment && existingComment.videoId !== videoId) throw new TRPCError({code:"BAD_REQUEST"})
             const [createdComment] = await db.insert(comments).values({userId,parentId,videoId,value}).returning()
             return createdComment
         }),
@@ -67,6 +74,10 @@ export const commentsRouter = createTRPCRouter({
                         eq(comments.videoId, videoId),
                         parentId?eq(comments.parentId,parentId):
                         isNull(comments.parentId),
+                        or(
+                            eq(videos.visibility, "public"),
+                            userId ? eq(videos.userId, userId) : undefined,
+                        ),
                         cursor
                             ? or(
                                 lt(comments.updatedAt, cursor.updatedAt),
@@ -77,13 +88,20 @@ export const commentsRouter = createTRPCRouter({
                             )
                             : undefined
                     ))
-                    .innerJoin(users, eq(comments.userId, users.id)).orderBy(desc(comments.updatedAt), desc(comments.id))
+                    .innerJoin(users, eq(comments.userId, users.id)).innerJoin(videos, eq(comments.videoId, videos.id)).orderBy(desc(comments.updatedAt), desc(comments.id))
                     .leftJoin(viewerReactions,eq(comments.id,viewerReactions.commentId))
                     .leftJoin(replies,eq(comments.id,replies.parentId))
                     .limit(limit + 1)
-                ,db.select({count:count()}).from(comments).where(and(eq(comments.videoId, videoId),
-                    // isNull(comments.parentId),
-                ))
+                ,db.select({count:count()}).from(comments)
+                    .innerJoin(videos, eq(comments.videoId, videos.id))
+                    .where(and(
+                        eq(comments.videoId, videoId),
+                        isNull(comments.parentId),
+                        or(
+                            eq(videos.visibility, "public"),
+                            userId ? eq(videos.userId, userId) : undefined,
+                        ),
+                    ))
             ])
             const hasMore = data.length > limit;
             //Remove the last item if there is more data

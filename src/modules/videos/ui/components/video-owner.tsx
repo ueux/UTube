@@ -16,7 +16,7 @@ export const VideoOwner = ({ user, videoId }: VideoOwnerProps) => {
     const { isPending, onClick } = useSubscription({ userId: user.id, isSubscribed: user.viewerSubscribed, fromVideoId: videoId })
     return (
         <div className="flex items-center justify-between sm:items-start sm:justify-start gap-3 min-w-0">
-            <Link prefetch href={`/uers/${user.id}`}>
+            <Link prefetch href={`/users/${user.id}`}>
                 <div className="flex items-center gap-3 min-w-0">
                     <UserAvatar size={"lg"} imageUrl={user.imageUrl} name={user.name} />
                     <div className="flex flex-col gap-1 min-w-0">

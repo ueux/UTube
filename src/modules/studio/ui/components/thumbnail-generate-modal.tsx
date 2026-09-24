@@ -31,6 +31,7 @@ export const ThumbnailGenerateModal = ({
   open,
   onOpenChange,
 }: ThumbnailGenerateModalProps) => {
+  const utils = trpc.useUtils();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -40,6 +41,7 @@ export const ThumbnailGenerateModal = ({
 
   const generateThumbnail = trpc.videos.generateThumbnail.useMutation({
     onSuccess: () => {
+      utils.studio.getOne.invalidate({ id: videoId });
       toast.success("Background job started", { description: "This may take some time" });
       form.reset();
       onOpenChange(false);

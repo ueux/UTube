@@ -30,9 +30,9 @@ export const FilterCarousel = ({
         if (!api) return
         setCount(api.scrollSnapList().length)
         setCurrent(api.selectedScrollSnap() + 1)
-        api.on("select", () => {
-            setCurrent(api.selectedScrollSnap() + 1)
-        })
+        const onSelectChange = () => setCurrent(api.selectedScrollSnap() + 1)
+        api.on("select", onSelectChange)
+        return () => { api.off("select", onSelectChange) }
     }, [api])
     return (
         <div className="relative w-full ">
@@ -71,22 +71,6 @@ export const FilterCarousel = ({
                             </Badge>
                         </CarouselItem>
                     ))}
-                    {!isLoading &&
-                        <CarouselItem onClick={()=>onSelect("Live")} className="pl-3 basis-auto">
-                            <Badge variant={!value ? "default" : "secondary"}
-                                className="rounded-lg px-3 py-1 cursor-pointer whitespace-nowrap text-sm">
-                                Live
-                            </Badge>
-                        </CarouselItem>
-                    }
-                    {!isLoading &&
-                        <CarouselItem onClick={()=>onSelect("Recently Uploaded")} className="pl-3 basis-auto">
-                            <Badge variant={!value ? "default" : "secondary"}
-                                className="rounded-lg px-3 py-1 cursor-pointer whitespace-nowrap text-sm">
-                                Recently Uploaded
-                            </Badge>
-                        </CarouselItem>
-                    }
                 </CarouselContent>
                 <CarouselPrevious className="left-0 z-20" />
                 <CarouselNext className="right-0 z-20" />

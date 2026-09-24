@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import z from "zod"
 
 import { trpc } from "@/trpc/client"
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { ErrorBoundary } from "react-error-boundary"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -137,6 +137,7 @@ const FormSectionSuspense = ({ videoId }: FormSectionProps) => {
     })
     const generateDescription = trpc.videos.generateDescription.useMutation({
         onSuccess: () => {
+            utils.studio.getOne.invalidate({ id: videoId });
             toast.success("Background job started", { description: "This may take some time" });
         },
         onError: () => {
@@ -145,6 +146,7 @@ const FormSectionSuspense = ({ videoId }: FormSectionProps) => {
     });
     const generateTitle = trpc.videos.generateTitle.useMutation({
         onSuccess: () => {
+            utils.studio.getOne.invalidate({ id: videoId });
             toast.success("Background job started", { description: "This may take some time" });
         },
         onError: () => {
@@ -165,6 +167,18 @@ const FormSectionSuspense = ({ videoId }: FormSectionProps) => {
         resolver: zodResolver(videoUpdateSchema),
         defaultValues: video,
     });
+
+    // Background AI jobs write title/description/thumbnail straight to the DB;
+    // re-apply server values once the query picks them up
+    useEffect(() => {
+        form.reset({
+            title: video.title,
+            description: video.description,
+            categoryId: video.categoryId,
+            visibility: video.visibility,
+            thumbnailUrl: video.thumbnailUrl,
+        });
+    }, [video.title, video.description, video.categoryId, video.visibility, video.thumbnailUrl, form]);
 
     const onSubmit = (data: z.infer<typeof videoUpdateSchema>) => {
         update.mutate(data)

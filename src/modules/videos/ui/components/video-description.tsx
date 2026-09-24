@@ -22,7 +22,7 @@ export const VideoDescription = ({
         </div>
         <div className="relative">
             <p className={cn("text-sm whitespace-pre-wrap",
-                isExpanded&&"line-clamp-2"
+                !isExpanded&&"line-clamp-2"
             )}>{description || "No description"}</p>
             <div className="flex items-center gap-1 text-sm mt-4 font-medium">
                 {isExpanded?(<>Show less<ChevronUpIcon className="size-4"/></>):(<>Show more<ChevronDownIcon className="size-4"/></>)}
